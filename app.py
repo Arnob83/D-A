@@ -1,3 +1,4 @@
+%%writefile app.py
 import pickle
 import streamlit as st
 import shap
@@ -5,16 +6,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 
-# URL to the raw xgboost.pkl file in your GitHub repository
-url = "https://raw.githubusercontent.com/<username>/<repository-name>/<branch>/xgboost.pkl"
+# URL to the raw xgb_model_new.pkl file in your GitHub repository
+url = "https://raw.githubusercontent.com/Arnob83/D-A/main/xgb_model_new.pkl"
 
-# Download the xgboost.pkl file and save it locally
+# Download the xgb_model_new.pkl file and save it locally
 response = requests.get(url)
-with open("xgboost.pkl", "wb") as file:
+with open("xgb_model_new.pkl", "wb") as file:
     file.write(response.content)
 
 # Load the trained model
-with open("xgboost.pkl", "rb") as pickle_in:
+with open("xgb_model_new.pkl", "rb") as pickle_in:
     classifier = pickle.load(pickle_in)
 
 @st.cache_data
@@ -115,3 +116,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
