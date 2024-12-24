@@ -1,119 +1,58 @@
-
-import pickle
+# Import module package
 import streamlit as st
-import shap
-import matplotlib.pyplot as plt
-import pandas as pd
-import requests
+import pickle
+# Load file model pickle
+pickle_loan = open('xgb_model_new.pkl', 'rb')
+classifier = pickle.load(pickle_loan)
+# Prediksi model ML
+def prediction(Gender, Married, ApplicantIncome, LoanAmount, Credit_History):
+    # Pra-proses input pengguna berdasarkan kolom
+    # Buat kondisi untuk kolom Gender dimana 0 = Laki-laki, 1 = Perempuan
+    if Gender == "Male":
+        Gender = 0
+    else:
+        Gender = 1
+    # Buat kondisi untuk kolom Married berdasarkan status pernikahan dimana 0 = Single, 1 = Married
+    if Married == "Unmarried":
+        Married = 0
+    else:
+        Married = 1
+    # Buat kondisi untuk kolom Credit_History berdasarkan riwayat pinjaman yaitu 0 = Tidak Lunas, 1 = Lunas
+    if Credit_History == 'Unclear Debts':
+        Credit_History = 0
+    else:
+        Credit_History = 1
+    
+    LoanAmount = LoanAmount / 1000
 
-# URL to the raw xgb_model_new.pkl file in your GitHub repository
-url = "https://raw.githubusercontent.com/Arnob83/D-A/main/xgb_model_new.pkl"
+    # Membuat Prediksi Pinjaman
+    prediction = classifier.predict([
+        [Gender, Married, ApplicantIncome, LoanAmount, Credit_History]])
 
-# Download the xgb_model_new.pkl file and save it locally
-response = requests.get(url)
-with open("xgb_model_new.pkl", "wb") as file:
-    file.write(response.content)
+    if prediction == 0:
+        pred = 'Ditolak!'
+    else:
+        pred = 'Diterima!'
+    return pred
 
-# Load the trained model
-with open("xgb_model_new.pkl", "rb") as pickle_in:
-    classifier = pickle.load(pickle_in)
+# Membuat judul WebApp Streamlit 
+st.header('Aplikasi Model Prediksi Pinjaman Dengan Streamlit')
+# Membuat fitur untuk input atau masukan data yang akan di prediksi
+# Pengisian kolom Gender
+Gender = st.selectbox('Jenis Kelamin',("Male", "Female"))
+# Pengisian kolom Status Pernikahan
+Married = st.selectbox('Status Pernikahan',("Unmarried", "Married")) 
+# Pengisian kolom Pendapatan Nasabah
+ApplicantIncome = st.number_input("Total Pendapatan Perbulan") 
+# Pengisian kolom Pinjaman
+LoanAmount = st.number_input("Total Pengajuan Pinjaman")
+# Pengisian kolom Riwayat Pinjaman
+Credit_History = st.selectbox('Riwayat Hutang Kredit',("Unclear Debts", "No Unclear Debts"))
+# Hasil tiap data yang dimasukkan
+result = ""
 
-@st.cache_data
-def prediction(Education_1, ApplicantIncome, CoapplicantIncome, Credit_History, Loan_Amount_Term):
-    # Convert user input
-    Education_1 = 0 if Education_1 == "Graduate" else 1
-    Credit_History = 0 if Credit_History == "Unclear Debts" else 1
-
-    # Create input data in the expected order
-    input_data = pd.DataFrame(
-        [[Education_1, ApplicantIncome, CoapplicantIncome, Credit_History, Loan_Amount_Term]],
-        columns=["Education_1", "ApplicantIncome", "CoapplicantIncome", "Credit_History", "Loan_Amount_Term"]
-    )
-
-    # Ensure column order matches the classifier’s expectations
-    input_data = input_data[classifier.feature_names_in_]
-
-    # Model prediction (0 = Rejected, 1 = Approved)
-    prediction = classifier.predict(input_data)
-    pred_label = 'Approved' if prediction[0] == 1 else 'Rejected'
-    return pred_label, input_data
-
-def explain_with_most_influential_feature(input_data, final_result):
-    """
-    Analyze features and return the most influential feature contributing to the result,
-    along with a bar chart for SHAP values.
-    """
-    # Initialize SHAP explainer
-    explainer = shap.Explainer(classifier)
-    shap_values = explainer(input_data)
-
-    # Extract SHAP values for the input data
-    shap_values_for_input = shap_values.values[0]  # SHAP values for the first row of input_data
-
-    # Prepare feature importance data
-    feature_names = input_data.columns
-    contributions = dict(zip(feature_names, shap_values_for_input))
-
-    # Identify the most influential feature
-    most_influential_feature = max(contributions, key=lambda k: abs(contributions[k]))
-    impact_value = contributions[most_influential_feature]
-
-    explanation_text = (
-        f"**Most Influential Feature:** {most_influential_feature}\n\n"
-        f"- This feature contributed **{'positively' if impact_value > 0 else 'negatively'}** "
-        f"to the result ({final_result}) with a SHAP value of **{impact_value:.2f}**."
-    )
-
-    # Create bar chart for SHAP values
-    plt.figure(figsize=(8, 5))
-    plt.barh(feature_names, shap_values_for_input, color="skyblue")
-    plt.xlabel("SHAP Value (Impact on Prediction)")
-    plt.ylabel("Features")
-    plt.title("Feature Contributions to Prediction")
-    plt.tight_layout()
-
-    return explanation_text, plt
-
-def main():
-    # Front-end elements
-    st.markdown(
-        """
-        <div style="background-color:Yellow;padding:13px">
-        <h1 style="color:black;text-align:center;">Loan Prediction ML App</h1>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # User inputs
-    Education_1 = st.selectbox('Education', ("Under_Graduate", "Graduate"))
-    ApplicantIncome = st.number_input("Applicant's Monthly Income", min_value=0.0)
-    CoapplicantIncome = st.number_input("Co-applicant's Monthly Income", min_value=0.0)
-    Credit_History = st.selectbox("Credit History", ("Unclear Debts", "Clear Debts"))
-    Loan_Amount_Term = st.number_input("Loan Term (in months)", min_value=0.0)
-
-    # Prediction
-    if st.button("Predict"):
-        result, input_data = prediction(
-            Education_1,
-            ApplicantIncome,
-            CoapplicantIncome,
-            Credit_History,
-            Loan_Amount_Term
-        )
-
-        # Show result in color
-        if result == "Approved":
-            st.success(f'Your loan is {result}', icon="✅")
-        else:
-            st.error(f'Your loan is {result}', icon="❌")
-
-        # Explanation: Most Influential Feature and SHAP Bar Plot
-        st.header("Most Influential Feature and SHAP Explanation")
-        explanation_text, bar_chart = explain_with_most_influential_feature(input_data, final_result=result)
-        st.write(explanation_text)
-        st.pyplot(bar_chart)
-
-if __name__ == '__main__':
-    main()
-
+# Menambahkan fitur tombol prediksi untuk hasil yang telah dimasukkan
+if st.button("Predict"): 
+    result = prediction(Gender, Married, ApplicantIncome, LoanAmount, Credit_History) 
+    st.success('Pinjaman Kamu : {}'.format(result))
+    st.write(f"Total Pinjaman : {LoanAmount}")
