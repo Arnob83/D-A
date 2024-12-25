@@ -4,19 +4,18 @@ import shap
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
-from io import BytesIO
 
-# Load the trained model from GitHub
-@st.cache_data
-def load_model():
-    url = "https://raw.githubusercontent.com/Arnob83/Deploy-model/main/XGBoost_model.pkl"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return pickle.load(BytesIO(response.content))
-    else:
-        raise FileNotFoundError(f"Failed to download the model file. Status code: {response.status_code}")
+# URL to the raw xgb_model_new.pkl file in your GitHub repository
+url = "https://raw.githubusercontent.com/Arnob83/D-A/main/xgb_model_new.pkl"
 
-classifier = load_model()
+# Download the xgb_model_new.pkl file and save it locally
+response = requests.get(url)
+with open("xgb_model_new.pkl", "wb") as file:
+    file.write(response.content)
+
+# Load the trained model
+with open("xgb_model_new.pkl", "rb") as pickle_in:
+    classifier = pickle.load(pickle_in)
 
 @st.cache_data
 def prediction(Education_1, ApplicantIncome, CoapplicantIncome, Credit_History, Loan_Amount_Term):
@@ -35,65 +34,44 @@ def prediction(Education_1, ApplicantIncome, CoapplicantIncome, Credit_History, 
 
     # Model prediction (0 = Rejected, 1 = Approved)
     prediction = classifier.predict(input_data)
-    if prediction[0] == 0:
-        pred_label = 'Rejected'
-    else:
-        pred_label = 'Approved'
+    pred_label = 'Approved' if prediction[0] == 1 else 'Rejected'
     return pred_label, input_data
 
-def explain_with_bar_chart_and_text(input_data, final_result):
+def explain_with_most_influential_feature(input_data, final_result):
     """
-    Generates a SHAP bar chart and text explanation.
+    Analyze features and return the most influential feature contributing to the result,
+    along with a bar chart for SHAP values.
     """
     # Initialize SHAP explainer
     explainer = shap.Explainer(classifier)
     shap_values = explainer(input_data)
 
-    shap_values_for_first_sample = shap_values.values[0]
-    predicted_class = 1 if final_result == 'Approved' else 0
-    if shap_values_for_first_sample.ndim > 1:
-        shap_values_for_first_sample = shap_values_for_first_sample[:, predicted_class]
+    # Extract SHAP values for the input data
+    shap_values_for_input = shap_values.values[0]  # SHAP values for the first row of input_data
 
-    # Prepare data for plotting and text explanation
+    # Prepare feature importance data
     feature_names = input_data.columns
-    contributions = dict(zip(feature_names, shap_values_for_first_sample))
+    contributions = dict(zip(feature_names, shap_values_for_input))
 
-    # --- Create bar chart ---
-    plt.figure(figsize=(8, 5))
-    plt.barh(feature_names, shap_values_for_first_sample, color="skyblue")
-    plt.title("Feature Contributions to Prediction")
-    plt.xlabel("SHAP Value (Impact on Prediction)")
-    plt.ylabel("Features")
-    plt.tight_layout()
+    # Identify the most influential feature
+    most_influential_feature = max(contributions, key=lambda k: abs(contributions[k]))
+    impact_value = contributions[most_influential_feature]
 
-    # --- Generate a text explanation ---
-    explanation_text = "Explanation of Features and Their SHAP Contributions:\n\n"
-    for feature, shap_value in contributions.items():
-        actual_value = input_data[feature].iloc[0]
-        if shap_value > 0:
-            explanation_text += (
-                f"- **{feature}** = {actual_value}, positively influenced (pushed) towards approval "
-                f"(SHAP: {shap_value:.2f}).\n"
-            )
-        elif shap_value < 0:
-            explanation_text += (
-                f"- **{feature}** = {actual_value}, negatively influenced (pushed) towards rejection "
-                f"(SHAP: {shap_value:.2f}).\n"
-            )
-        else:
-            explanation_text += (
-                f"- **{feature}** = {actual_value}, no significant impact (SHAP: 0).\n"
-            )
-
-    # Most Influential Feature
-    largest_contributor_feature = max(contributions, key=lambda k: abs(contributions[k]))
-    largest_contributor_value = contributions[largest_contributor_feature]
-    explanation_text += (
-        f"\n**Most Influential Feature**: {largest_contributor_feature} "
-        f"(SHAP = {largest_contributor_value:.2f})."
+    explanation_text = (
+        f"**Most Influential Feature:** {most_influential_feature}\n\n"
+        f"- This feature contributed **{'positively' if impact_value > 0 else 'negatively'}** "
+        f"to the result ({final_result}) with a SHAP value of **{impact_value:.2f}**."
     )
 
-    return plt, explanation_text
+    # Create bar chart for SHAP values
+    plt.figure(figsize=(8, 5))
+    plt.barh(feature_names, shap_values_for_input, color="skyblue")
+    plt.xlabel("SHAP Value (Impact on Prediction)")
+    plt.ylabel("Features")
+    plt.title("Feature Contributions to Prediction")
+    plt.tight_layout()
+
+    return explanation_text, plt
 
 def main():
     # Front-end elements
@@ -129,11 +107,11 @@ def main():
         else:
             st.error(f'Your loan is {result}', icon="❌")
 
-        # Explanation (with SHAP)
-        st.header("Explanation of Prediction")
-        bar_chart, explanation_text = explain_with_bar_chart_and_text(input_data, final_result=result)
-        st.pyplot(bar_chart)
+        # Explanation: Most Influential Feature and SHAP Bar Plot
+        st.header("Most Influential Feature and SHAP Explanation")
+        explanation_text, bar_chart = explain_with_most_influential_feature(input_data, final_result=result)
         st.write(explanation_text)
+        st.pyplot(bar_chart)
 
 if __name__ == '__main__':
     main()
