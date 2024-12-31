@@ -4,6 +4,7 @@ import shap
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
+import xgboost as xgb
 
 # URL to the raw xgb_model_new.pkl file in your GitHub repository
 url = "https://raw.githubusercontent.com/Arnob83/D-A/main/xgb_model_new.pkl"
@@ -42,12 +43,15 @@ def explain_with_most_influential_feature(input_data, final_result):
     Analyze features and return the most influential feature contributing to the result,
     along with a bar chart for SHAP values.
     """
-    # Initialize SHAP explainer
-    explainer = shap.Explainer(classifier)
-    shap_values = explainer(input_data)
+    # Convert the input data to DMatrix for XGBoost compatibility
+    dmatrix_input = xgb.DMatrix(input_data)
+
+    # Initialize SHAP explainer for XGBoost
+    explainer = shap.TreeExplainer(classifier)
+    shap_values = explainer.shap_values(dmatrix_input)
 
     # Extract SHAP values for the input data
-    shap_values_for_input = shap_values.values[0]  # SHAP values for the first row of input_data
+    shap_values_for_input = shap_values[0]  # SHAP values for the first row of input_data
 
     # Prepare feature importance data
     feature_names = input_data.columns
@@ -115,3 +119,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
