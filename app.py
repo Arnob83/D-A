@@ -7,19 +7,19 @@ import pandas as pd
 import requests
 import os
 
+# URL to the raw xgb_model_new.pkl file in your GitHub repository
+url = "https://raw.githubusercontent.com/Arnob83/D-A/main/xgb_model_new.pkl"
 
-url = "https://raw.githubusercontent.com/Arnob83/Demo-of-app/main/xgb_model_new.pkl"
-
-
+# Download the xgb_model_new.pkl file and save it locally
 response = requests.get(url)
 with open("xgb_model_new.pkl", "wb") as file:
     file.write(response.content)
 
-
+# Load the trained model
 with open("xgb_model_new.pkl", "rb") as pickle_in:
     classifier = pickle.load(pickle_in)
 
-
+# Initialize SQLite database
 def init_db():
     conn = sqlite3.connect("loan_data.db")
     cursor = conn.cursor()
@@ -43,6 +43,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Save prediction data to the database
 def save_to_database(gender, married, dependents, self_employed, loan_amount, property_area, 
                      credit_history, education, applicant_income, coapplicant_income, 
                      loan_amount_term, result):
@@ -60,29 +61,29 @@ def save_to_database(gender, married, dependents, self_employed, loan_amount, pr
     conn.commit()
     conn.close()
 
-
+# Prediction function
 @st.cache_data
 def prediction(Credit_History, Education_1, ApplicantIncome, CoapplicantIncome, Loan_Amount_Term):
     # Map user inputs to numeric values (if necessary)
     Education_1 = 0 if Education_1 == "Graduate" else 1
     Credit_History = 0 if Credit_History == "Unclear Debts" else 1
 
-    
+    # Create input data (all user inputs)
     input_data = pd.DataFrame(
         [[Credit_History, Education_1, ApplicantIncome, CoapplicantIncome, Loan_Amount_Term]],
         columns=["Credit_History", "Education_1", "ApplicantIncome", "CoapplicantIncome", "Loan_Amount_Term"]
     )
 
-    
+    # Filter to only include features used by the model
     trained_features = classifier.feature_names_in_  # Features used in model training
     input_data_filtered = input_data[trained_features]
 
-    
+    # Model prediction (0 = Rejected, 1 = Approved)
     prediction = classifier.predict(input_data_filtered)
     pred_label = 'Approved' if prediction[0] == 1 else 'Rejected'
     return pred_label, input_data_filtered
 
-# shap
+# Explanation function
 def explain_prediction(input_data, final_result):
     explainer = shap.TreeExplainer(classifier)
     shap_values = explainer.shap_values(input_data)
@@ -107,7 +108,7 @@ def explain_prediction(input_data, final_result):
     plt.tight_layout()
     return explanation_text, plt
 
-# Main app
+# Main Streamlit app
 def main():
     # Initialize database
     init_db()
@@ -141,7 +142,7 @@ def main():
         unsafe_allow_html=True
     )
 
-    #  inputs of user
+    # User inputs
     Gender = st.selectbox("Gender", ("Male", "Female"))
     Married = st.selectbox("Married", ("Yes", "No"))
     Dependents = st.selectbox("Dependents", (0, 1, 2, 3, 4, 5))
