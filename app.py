@@ -8,7 +8,7 @@ import requests
 import os
 
 
-url = "https://raw.githubusercontent.com/Arnob83/D-A/main/xgb_model_new.pkl"
+url = "https://raw.githubusercontent.com/Arnob83/Demo-of-App/main/xgb_model_new.pkl"
 
 
 response = requests.get(url)
